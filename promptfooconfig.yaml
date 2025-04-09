@@ -1,0 +1,91 @@
+providers:
+  - id: azure:chat:gpt-4o-mini
+    config:
+      apiHost: "https://probearbeit-ai.openai.azure.com/"
+      apiKey: "7ea5qanGeZQKTmyHh6FZOrAAVjsFO8fBH3gfSH5RWLgbpweS0xFEJQQJ99BDAC5RqLJXJ3w3AAABACOGYhX1"
+      deployment: gpt-4o-mini
+      apiVersion: 2024-02-15-preview
+      temperature: 0
+
+prompts:
+  - file://prompts/feedback_v5.txt
+
+tests:
+  # This first test is to just see how the original prompt reacts. it's a correct answer therefore it passed.
+  - description: "Test Case 1: Well-structured but missing context (WWII causes)"
+    vars:
+      teacherContent: "Explain the causes of World War II in 3-5 sentences."
+      criteria:
+        - "Clarity of explanation"
+        - "Historical accuracy"
+        - "Conciseness"
+      userContent: "World War II was caused by the Treaty of Versailles, Hitler's expansionist policies, and the failure of appeasement."
+    assert:
+      - type: llm-rubric
+        provider: azure:chat:gpt-4o-mini
+        value: |
+          Feedback must include:
+          1. Praise (e.g., 'Great job summarizing...')
+          2. Improvement suggestions (e.g., 'Consider adding economic instability...')
+          3. Correct scoring (High value for this test case).
+
+  # This test helped in creating feedback_v2.txt. It showed that the AI will still provide praise even if the user enters gibberish or simply empty responses.
+  - description: "Test Case 2: Empty or nonsensical user content"
+    vars:
+      teacherContent: "Explain the causes of World War II in 3-5 sentences."
+      criteria:
+        - "Clarity of explanation"
+        - "Historical accuracy"
+        - "Conciseness"
+      userContent: "asdfjkl;"
+    assert:
+      - type: llm-rubric
+        provider: azure:chat:gpt-4o-mini
+        value: |
+          Feedback must:
+          1. Clearly state that the response is invalid.
+          2. Provide constructive guidance (e.g., "Please provide a structured response.").
+          3. Avoid false praise.
+          4. Include correct scoring (1/100 in this test case).
+
+  # These next 2 tests case helped create feedback_v3.txt. Feedback now always has values ranging from 1 to 100 and not strictly 1 or 100.
+  # This was a contradiction in the original template.
+  - description: "Test Case 3: Partially valid response with nonsense elements"
+    vars:
+      teacherContent: "Explain three causes of the French Revolution in 2-3 sentences."
+      criteria:
+        - "Historical accuracy"
+        - "Clarity"
+        - "Relevance"
+      userContent: "The French Revolution was caused by economic crisis and asdfjkl;. The Third Estate was unhappy."
+    assert:
+      - type: llm-rubric
+        provider: azure:chat:gpt-4o-mini
+        value: |
+          Expected Behavior:
+          1. Scores should include values between 1/100 and 100/100 depending on :
+             - How much the user followed the specific criteria
+          2. Feedback must:
+             - Praise the valid parts ("Good identification of economic crisis...")
+             - Correct the invalid parts ("'asdfjkl;' is not meaningful...")
+             - NOT give universal praise
+             - Provide specific examples for correction
+
+  # This proved that the AI needs a scoring benchmark/system. It sometimes rates too harshly (i.e a half accurate answer should get 50/100)
+  - description: "Test Case 4: Minimally valid response"
+    vars:
+      teacherContent: "Name two key figures in the American Revolution."
+      criteria:
+        - "Completeness"
+        - "Accuracy"
+      userContent: "George Washington"
+    assert:
+      - type: llm-rubric
+        provider: azure:chat:gpt-4o-mini
+        value: |
+          Expected:
+          1. Accuracy should have a high value while completeness should be 50/100
+          2. Feedback must:
+             - Praise correct identification
+             - Note missing second figure
+             - Provide example ("Add Thomas Jefferson...")
